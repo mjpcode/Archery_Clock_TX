@@ -16,6 +16,25 @@
  * Usage:
  * The program runs automatically once uploaded. It controls the LED strip to display timing and group information. Adjust colors and timings in `main.cpp`. Don't touch the other variables unless you know what you're doing.*/
 
+
+
+
+
+
+
+
+
+/*
+  TO BE DONE:
+  1) Splitting of actions into different, callable methods
+  2) Change slave action triggers to trigger each action individually
+  3) Create "arrows" method
+  4) Clean up old method
+  5) Clean up code
+  6) Set buttons for modes and set "wait for continue" steps inside archery clock method when semi/manual mode is on
+
+*/
+
 #include <Arduino.h>              // only needed if you are using PlatformIO, the Arduino IDE already includes this library by defualt in the background
 #include <Adafruit_NeoPixel.h>    // include the Adafruit NeoPixel library, alternative to the FastLED library
 #include <esp_now.h>
@@ -90,6 +109,7 @@ esp_now_peer_info_t peerInfo[sizeof(receiverAddresses) / sizeof(receiverAddresse
 #define FFWbutton   22             // all GPIO pins can be used
 #define Holdbutton  23             // all GPIO pins can be used
 #define buzzer      13             // all GPIO pins can be used
+#define btn_Idle 
 
 Adafruit_NeoPixel clock1(NUM_PIXELS, LEDPIN, NEO_GRB + NEO_KHZ800);
 
@@ -309,6 +329,34 @@ void displayGroup(){  // MARK: DISPLAYGROUP
 
 }
 
+void mode_archeryclock() {
+  while (actRound <= numRounds) {
+    //Serial.print("actRound: ");Serial.println(actRound);  // print the actual round for debugging
+    buzz(2);
+
+    for (subRound = 0; subRound < numGroups; subRound++) {
+      //for(int j = 0; j < (sizeof(listOfGroups)/sizeof(listOfGroups[0])); j++) {Serial.print(listOfGroups[j]);}Serial.println(); // print the list of groups for debugging
+
+      displayGroup();
+      countDown(0,numLedTimer, colorOfGetToLine, secGetToLine, false); // get to the line
+      buzz(1);
+      countDown(0,numLedTimer, colorOfTimer,     secShooting,  true );      // shooting
+      
+      if (subRound+1 != numGroups) {
+        buzz(2);
+      }
+      updateGroups();
+    }
+    buzz(3);
+    updateGroups();
+    fade(0);                                                // indicates the end of shooting 
+    hold(); // holds every thing after the last group shoot until the hold- or continue-button is pressed, time to collect the arrows and write down the scores
+    
+    actRound++;
+  }
+  buzz(5);
+  //competition is over
+}
 
 void hold(){  // MARK: HOLD
 
@@ -483,35 +531,47 @@ void setup() {  //MARK: SETUP
   }
 
   sentID(1458);
+
+
 }
 
-void loop() { //MARK: LOOP
-  //checkButtons();
-  
-  while (actRound <= numRounds) {
-    //Serial.print("actRound: ");Serial.println(actRound);  // print the actual round for debugging
-    buzz(2);
 
-    for (subRound = 0; subRound < numGroups; subRound++) {
-      //for(int j = 0; j < (sizeof(listOfGroups)/sizeof(listOfGroups[0])); j++) {Serial.print(listOfGroups[j]);}Serial.println(); // print the list of groups for debugging
 
-      displayGroup();
-      countDown(0,numLedTimer, colorOfGetToLine, secGetToLine, false); // get to the line
-      buzz(1);
-      countDown(0,numLedTimer, colorOfTimer,     secShooting,  true );      // shooting
-      
-      if (subRound+1 != numGroups) {
-        buzz(2);
-      }
-      updateGroups();
-    }
-    buzz(3);
-    updateGroups();
-    fade(0);                                                // indicates the end of shooting 
-    hold(); // holds every thing after the last group shoot until the hold- or continue-button is pressed, time to collect the arrows and write down the scores
-    
-    actRound++;
+enum class mode_of_Operation { // Set modes of operation as a class for ease of navigation
+    Idle,
+    archery_clock,
+    interrupt_arrows
+};
+
+mode_of_Operation run_mode = mode_of_Operation::Idle; // Default mode
+bool bool_running; 
+
+void loop() { // MARK: LOOP
+
+  checkButtons();
+  // inputs to be checked
+
+  switch (run_mode) {
+    case mode_of_Operation::Idle: // Idle animation while mode is set to 0
+      pingPong();
+
+    case mode_of_Operation::archery_clock:
+      mode_archeryclock();
+      break;
+
+    case mode_of_Operation::interrupt_arrows:
+    // TO BE DONE
+      break;
+
+    default:
+      pingPong();
+      break;
   }
-  buzz(5);
-  //competition is over
+
+
+  if (bool_running == false){
+    run_mode = mode_of_Operation::Idle;
+  }
+
 }
+
